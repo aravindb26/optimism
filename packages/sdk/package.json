@@ -1,6 +1,6 @@
 {
-  "name": "@eth-optimism/sdk",
-  "version": "2.1.0",
+  "name": "@across-protocol/optimism-sdk",
+  "version": "2.1.3",
   "description": "[Optimism] Tools for working with Optimism",
   "main": "dist/index",
   "types": "dist/index",
@@ -27,12 +27,12 @@
     "ethereum",
     "sdk"
   ],
-  "homepage": "https://github.com/ethereum-optimism/optimism/tree/develop/packages/sdk#readme",
+  "homepage": "https://github.com/across-protocol/optimism/tree/develop/packages/sdk#readme",
   "license": "MIT",
   "author": "Optimism PBC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ethereum-optimism/optimism.git"
+    "url": "https://github.com/across-protocol/optimism.git"
   },
   "devDependencies": {
     "@ethersproject/abstract-provider": "^5.7.0",
@@ -63,5 +63,9 @@
   },
   "peerDependencies": {
     "ethers": "^5"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.com/",
+    "access": "public"
   }
 }

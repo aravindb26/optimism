@@ -370,10 +370,12 @@ export class CrossChainMessenger {
    * L2ToL1MessagePasser contract on L2.
    *
    * @param message Message to transform.
+   * @param logIndex Index of the message in the transaction receipt.
    * @return Transformed message.
    */
   public async toLowLevelMessage(
-    message: MessageLike
+    message: MessageLike,
+    logIndex = 0
   ): Promise<LowLevelMessage> {
     const resolved = await this.toCrossChainMessage(message)
     if (resolved.direction === MessageDirection.L1_TO_L2) {
@@ -429,12 +431,7 @@ export class CrossChainMessenger {
         throw new Error(`no withdrawals found in receipt`)
       }
 
-      // TODO: Add support for multiple withdrawals.
-      if (withdrawals.length > 1) {
-        throw new Error(`multiple withdrawals found in receipt`)
-      }
-
-      const withdrawal = withdrawals[0]
+      const withdrawal = withdrawals[logIndex]
       messageNonce = withdrawal.nonce
       gasLimit = withdrawal.gasLimit
     }
@@ -634,9 +631,13 @@ export class CrossChainMessenger {
    * Retrieves the status of a particular message as an enum.
    *
    * @param message Cross chain message to check the status of.
+   * @param logIndex Log index of the message.
    * @returns Status of the message.
    */
-  public async getMessageStatus(message: MessageLike): Promise<MessageStatus> {
+  public async getMessageStatus(
+    message: MessageLike,
+    logIndex = 0
+  ): Promise<MessageStatus> {
     const resolved = await this.toCrossChainMessage(message)
     const receipt = await this.getMessageReceipt(resolved)
 
@@ -660,7 +661,7 @@ export class CrossChainMessenger {
           }
 
           // Convert the message to the low level message that was proven.
-          const withdrawal = await this.toLowLevelMessage(resolved)
+          const withdrawal = await this.toLowLevelMessage(resolved, logIndex)
 
           // Attempt to fetch the proven withdrawal.
           const provenWithdrawal =
@@ -1349,10 +1350,12 @@ export class CrossChainMessenger {
    * Generates the bedrock proof required to finalize an L2 to L1 message.
    *
    * @param message Message to generate a proof for.
+   * @param logIndex Index of the message within the L2 transaction.
    * @returns Proof that can be used to finalize the message.
    */
   public async getBedrockMessageProof(
-    message: MessageLike
+    message: MessageLike,
+    logIndex = 0
   ): Promise<BedrockCrossChainMessageProof> {
     const resolved = await this.toCrossChainMessage(message)
     if (resolved.direction === MessageDirection.L1_TO_L2) {
@@ -1364,7 +1367,7 @@ export class CrossChainMessenger {
       throw new Error(`state root for message not yet published`)
     }
 
-    const withdrawal = await this.toLowLevelMessage(resolved)
+    const withdrawal = await this.toLowLevelMessage(resolved, logIndex)
     const hash = hashLowLevelMessage(withdrawal)
     const messageSlot = hashMessageHash(hash)
 
@@ -1435,6 +1438,7 @@ export class CrossChainMessenger {
   public async resendMessage(
     message: MessageLike,
     messageGasLimit: NumberLike,
+    logIndex = 0,
     opts?: {
       signer?: Signer
       overrides?: Overrides
@@ -1444,6 +1448,7 @@ export class CrossChainMessenger {
       await this.populateTransaction.resendMessage(
         message,
         messageGasLimit,
+        logIndex,
         opts
       )
     )
@@ -1454,6 +1459,7 @@ export class CrossChainMessenger {
    * messages.
    *
    * @param message Message to finalize.
+   * @param logIndex Index of the message within the L2 transaction.
    * @param opts Additional options.
    * @param opts.signer Optional signer to use to send the transaction.
    * @param opts.overrides Optional transaction overrides.
@@ -1461,12 +1467,17 @@ export class CrossChainMessenger {
    */
   public async proveMessage(
     message: MessageLike,
+    logIndex = 0,
     opts?: {
       signer?: Signer
       overrides?: Overrides
     }
   ): Promise<TransactionResponse> {
-    const tx = await this.populateTransaction.proveMessage(message, opts)
+    const tx = await this.populateTransaction.proveMessage(
+      message,
+      logIndex,
+      opts
+    )
     return (opts?.signer || this.l1Signer).sendTransaction(tx)
   }
 
@@ -1475,6 +1486,7 @@ export class CrossChainMessenger {
    * messages. Will throw an error if the message has not completed its challenge period yet.
    *
    * @param message Message to finalize.
+   * @param logIndex Index of the message within the L2 transaction.
    * @param opts Additional options.
    * @param opts.signer Optional signer to use to send the transaction.
    * @param opts.overrides Optional transaction overrides.
@@ -1482,13 +1494,14 @@ export class CrossChainMessenger {
    */
   public async finalizeMessage(
     message: MessageLike,
+    logIndex = 0,
     opts?: {
       signer?: Signer
       overrides?: PayableOverrides
     }
   ): Promise<TransactionResponse> {
     return (opts?.signer || this.l1Signer).sendTransaction(
-      await this.populateTransaction.finalizeMessage(message, opts)
+      await this.populateTransaction.finalizeMessage(message, logIndex, opts)
     )
   }
 
@@ -1708,6 +1721,7 @@ export class CrossChainMessenger {
     resendMessage: async (
       message: MessageLike,
       messageGasLimit: NumberLike,
+      logIndex = 0,
       opts?: {
         overrides?: Overrides
       }
@@ -1718,7 +1732,7 @@ export class CrossChainMessenger {
       }
 
       if (this.bedrock) {
-        return this.populateTransaction.finalizeMessage(resolved, {
+        return this.populateTransaction.finalizeMessage(resolved, logIndex, {
           ...(opts || {}),
           overrides: {
             ...opts?.overrides,
@@ -1748,12 +1762,14 @@ export class CrossChainMessenger {
      * applicable for L2 to L1 messages.
      *
      * @param message Message to generate the proving transaction for.
+     * @param logIndex Log index of the message within the L2 transaction.
      * @param opts Additional options.
      * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to prove the message.
      */
     proveMessage: async (
       message: MessageLike,
+      logIndex = 0,
       opts?: {
         overrides?: PayableOverrides
       }
@@ -1769,8 +1785,8 @@ export class CrossChainMessenger {
         )
       }
 
-      const withdrawal = await this.toLowLevelMessage(resolved)
-      const proof = await this.getBedrockMessageProof(resolved)
+      const withdrawal = await this.toLowLevelMessage(resolved, logIndex)
+      const proof = await this.getBedrockMessageProof(resolved, logIndex)
 
       const args = [
         [
@@ -1803,12 +1819,14 @@ export class CrossChainMessenger {
      * its challenge period yet.
      *
      * @param message Message to generate the finalization transaction for.
+     * @param logIndex Log index of the message within the L2 transaction.
      * @param opts Additional options.
      * @param opts.overrides Optional transaction overrides.
      * @returns Transaction that can be signed and executed to finalize the message.
      */
     finalizeMessage: async (
       message: MessageLike,
+      logIndex = 0,
       opts?: {
         overrides?: PayableOverrides
       }
@@ -1819,7 +1837,7 @@ export class CrossChainMessenger {
       }
 
       if (this.bedrock) {
-        const withdrawal = await this.toLowLevelMessage(resolved)
+        const withdrawal = await this.toLowLevelMessage(resolved, logIndex)
         return this.contracts.l1.OptimismPortal.populateTransaction.finalizeWithdrawalTransaction(
           [
             withdrawal.messageNonce,
@@ -2016,6 +2034,7 @@ export class CrossChainMessenger {
     resendMessage: async (
       message: MessageLike,
       messageGasLimit: NumberLike,
+      logIndex = 0,
       opts?: {
         overrides?: CallOverrides
       }
@@ -2024,6 +2043,7 @@ export class CrossChainMessenger {
         await this.populateTransaction.resendMessage(
           message,
           messageGasLimit,
+          logIndex,
           opts
         )
       )
@@ -2039,12 +2059,13 @@ export class CrossChainMessenger {
      */
     proveMessage: async (
       message: MessageLike,
+      logIndex = 0,
       opts?: {
         overrides?: CallOverrides
       }
     ): Promise<BigNumber> => {
       return this.l1Provider.estimateGas(
-        await this.populateTransaction.proveMessage(message, opts)
+        await this.populateTransaction.proveMessage(message, logIndex, opts)
       )
     },
 
@@ -2058,12 +2079,13 @@ export class CrossChainMessenger {
      */
     finalizeMessage: async (
       message: MessageLike,
+      logIndex = 0,
       opts?: {
         overrides?: CallOverrides
       }
     ): Promise<BigNumber> => {
       return this.l1Provider.estimateGas(
-        await this.populateTransaction.finalizeMessage(message, opts)
+        await this.populateTransaction.finalizeMessage(message, logIndex, opts)
       )
     },
 

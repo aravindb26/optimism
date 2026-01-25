@@ -56,7 +56,7 @@
     "@eth-optimism/core-utils": "^0.12.0",
     "@openzeppelin/contracts": "4.7.3",
     "@openzeppelin/contracts-upgradeable": "4.7.3",
-    "ethers": "^5.7.0"
+    "ethers": "^6.0.0"
   },
   "devDependencies": {
     "@eth-optimism/hardhat-deploy-config": "^0.2.6",
